@@ -3,6 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<script src="https://delcdata.github.io/DELCAppsHub/delc-kit.js?v=2"></script>
 <title>delcDINING.EVENT</title>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <script src="https://delcdata.github.io/DELCAppsHub/shared-auth.js?v=3"></script>
@@ -191,6 +192,11 @@ svg.floor .fixline{cursor:pointer}
 svg.floor.mode-layout .fixline{cursor:grab}
 table.pt tfoot td{border-top:2px solid var(--line);background:#faf8f3}
 .chip.vend{background:#e8eefb;color:#1f3f86}
+
+/* shared header buttons (2026-11-14) — same look in every delcAPP; delc-kit.js carries the full rule, this is the fallback */
+.delc-hbtn{background:rgba(255,255,255,.12);border:0;color:#fff;border-radius:8px;padding:5px 11px;font-size:13px;font-weight:700;text-decoration:none;white-space:nowrap;cursor:pointer}.delc-hbtn.pri{background:#fff;color:#1B3254}
+.delc-wm{display:inline-flex;align-items:baseline;font-weight:800;letter-spacing:-.01em;color:#fff;white-space:nowrap}.delc-wm b{color:#84c225;font-weight:800}
+.brand .delc-wm{font-size:19px}@media(max-width:520px){header.top>.small{display:none}}
 </style>
 </head>
 <body>
@@ -1137,8 +1143,8 @@ function viewLogin(err='') {
 function viewEvents() {
   const list = S.events.filter(e => !e.archived);
   return `${S.backend === 'local' ? '<div class="demo-banner">Demo mode — data is saved on this device only</div>' : ''}
-  <header class="top"><div class="brand"><span class="logo">delc</span> DINING.EVENT</div><div class="spacer"></div>
-  <span class="small">${esc(S.userName || S.user)}</span><a class="tbtn" style="text-decoration:none" href="${CONFIG.hubUrl}">Apps</a><button class="tbtn" data-act="logout">Sign out</button></header>
+  <header class="top"><div class="brand"><span class="delc-wm">delc<b>DINING.EVENT</b></span></div><div class="spacer"></div>
+  <span class="small">${esc(S.userName || S.user)}</span><a class="tbtn delc-hbtn" href="${CONFIG.hubUrl}">Apps</a><button class="tbtn delc-hbtn" data-act="logout">Sign out</button></header>
   <div class="events">
     <div class="row" style="justify-content:space-between;margin-bottom:14px"><h2 style="margin:0;color:var(--navy)">Events</h2><button class="btn pri" data-act="newEvent">+ New event</button></div>
     ${list.length ? list.map(e => `<div class="card evcard" data-act="openEvent" data-id="${e.id}"><div><h3>${esc(e.name)}</h3>
@@ -1152,12 +1158,12 @@ function header() {
   const tabs = VE ? [['vfloor','Floor plan'],['vendors','Vendors'],['setup','Setup']] : S.role === 'host' ? hostTabs : S.role === 'server' ? [['server','My Section']] : [['takeout','Take-out']];
   const canUndo = S.undo.length && (S.role === 'host' || VE);
   return `${S.backend === 'local' ? '<div class="demo-banner">Demo mode — data is saved on this device only</div>' : ''}
-  <header class="top"><div class="brand"><span class="logo">delc</span></div>
+  <header class="top"><div class="brand"><span class="delc-wm">delc<b>DINING</b></span></div>
     <div class="evname"><b>${esc(e.name)}</b> ${e.event_date ? '· ' + esc(fmtDate(e.event_date)) : ''}</div>
     <div class="spacer"></div><span class="conn" id="conn"></span>
-    ${canUndo ? `<button class="tbtn" data-act="undo" title="Undo: ${esc(S.undo[S.undo.length-1].label)}">↶ Undo</button>` : ''}
+    ${canUndo ? `<button class="tbtn delc-hbtn" data-act="undo" title="Undo: ${esc(S.undo[S.undo.length-1].label)}">↶ Undo</button>` : ''}
     ${VE ? '<span class="chip vend" style="background:rgba(255,255,255,.16);color:#fff">Vendor event</span>' : ''}<select data-chg="role" aria-label="Role" ${VE ? 'class="hidden"' : ''}><option value="host" ${S.role==='host'?'selected':''}>Host</option><option value="server" ${S.role==='server'?'selected':''}>Server</option><option value="takeout" ${S.role==='takeout'?'selected':''}>Take-out</option></select>
-    <button class="tbtn" data-act="backEvents">Events</button><button class="tbtn" data-act="logout" title="Signed in as ${esc(S.userName || S.user)}">Sign out</button></header>
+    <button class="tbtn delc-hbtn" data-act="backEvents">Events</button><button class="tbtn delc-hbtn" data-act="logout" title="Signed in as ${esc(S.userName || S.user)}">Sign out</button></header>
   <nav class="tabs">${tabs.map(([k,l]) => `<button class="tab ${S.view===k?'on':''}" data-act="tab" data-v="${k}">${l}</button>`).join('')}</nav>`;
 }
 function pCard(p, occ) {
