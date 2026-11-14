@@ -3,14 +3,14 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<script src="https://delcdata.github.io/DELCAppsHub/delc-kit.js?v=2"></script>
+<script src="https://delcdata.github.io/DELCAppsHub/delc-kit.js?v=3"></script>
 <title>delcDINING.EVENT</title>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <script src="https://delcdata.github.io/DELCAppsHub/shared-auth.js?v=3"></script>
 <style>
 :root{
-  --navy:#1B3254; --navy2:#26446f; --gold:#C8973A; --gold2:#e9d3a6;
-  --bg:#F4F1EA; --card:#ffffff; --ink:#1d2433; --muted:#667085; --line:#e2dccf;
+  --navy:#1B3254; --navy2:#26446f; --gold:#1B3254; --gold2:#dbe4f0;
+  --bg:#eef1f6; --card:#ffffff; --ink:#1d2433; --muted:#667085; --line:#e2dccf;
   --ok:#2E8B57; --warn:#E0A526; --bad:#C0392B; --soft:#faf8f3;
 }
 *{box-sizing:border-box}
@@ -23,7 +23,7 @@ button{cursor:pointer}
 /* header */
 .top{background:var(--navy);color:#fff;display:flex;align-items:center;gap:12px;padding:10px 16px;position:sticky;top:0;z-index:20;flex-wrap:wrap}
 .brand{display:flex;align-items:center;gap:8px;font-weight:700;letter-spacing:.2px;white-space:nowrap}
-.logo{background:var(--gold);color:var(--navy);border-radius:6px;padding:2px 7px;font-weight:800;font-size:14px}
+.logo{background:#fff;color:var(--navy);border-radius:6px;padding:2px 7px;font-weight:800;font-size:14px}
 .evname{font-size:14px;opacity:.9;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:40vw}
 .spacer{flex:1}
 .conn{font-size:12px;display:flex;align-items:center;gap:6px;white-space:nowrap}
@@ -131,7 +131,7 @@ svg.floor.mode-layout .tbl,svg.floor.mode-layout .fix{cursor:grab}
 .palette{display:grid;grid-template-columns:1fr 1fr;gap:8px}
 .palette .btn{text-align:left}
 table.pt{width:100%;border-collapse:collapse;background:#fff;font-size:14px}
-table.pt th{position:sticky;top:0;background:#f1ede4;text-align:left;font-size:12px;color:var(--muted);padding:8px 6px;border-bottom:1px solid var(--line);z-index:1}
+table.pt th{position:sticky;top:0;background:#e9edf3;text-align:left;font-size:12px;color:var(--muted);padding:8px 6px;border-bottom:1px solid var(--line);z-index:1}
 table.pt td{border-bottom:1px solid #eee8dc;padding:5px 6px;vertical-align:middle}
 table.pt input.inp{padding:5px 7px;font-size:14px;width:100%}
 table.pt input.num{width:56px}
@@ -161,7 +161,7 @@ textarea.paste{width:100%;min-height:170px;border:1px solid var(--line);border-r
 .mlist{display:flex;flex-direction:column;gap:8px;margin:8px 0}
 .mitem{border:1px solid var(--line);border-radius:12px;padding:10px;display:flex;flex-direction:column;gap:6px}
 .tickets{max-height:240px;overflow:auto;border:1px solid var(--line);border-radius:10px}
-.tickets label{display:flex;gap:8px;align-items:center;padding:6px 10px;border-bottom:1px solid #f0ece3;font-size:14px}
+.tickets label{display:flex;gap:8px;align-items:center;padding:6px 10px;border-bottom:1px solid #e9edf3;font-size:14px}
 .sectitle{font-size:12px;font-weight:800;letter-spacing:.5px;text-transform:uppercase;color:var(--muted);margin:14px 0 4px}
 
 #toast{position:fixed;left:50%;bottom:18px;transform:translateX(-50%);z-index:80;display:flex;flex-direction:column;gap:6px;align-items:center;pointer-events:none}
@@ -651,7 +651,7 @@ function tableSvg(t, o, opt) {
   const round = t.shape === 'round'; const R = roundR(t.seats); const d = rectDims(t);
   let body = '', ring = '';
   const shape = (pad, attrs) => round ? `<circle r="${R + pad}" ${attrs}/>` : `<rect x="${-d.w/2 - pad}" y="${-d.h/2 - pad}" width="${d.w + 2*pad}" height="${d.h + 2*pad}" rx="${8 + pad/2}" ${attrs}/>`;
-  if (opt.picked) ring = shape(22, 'fill="none" stroke="#C8973A" stroke-width="7"');
+  if (opt.picked) ring = shape(22, 'fill="none" stroke="#2F80ED" stroke-width="7"');
   else if (opt.best) ring = shape(22, 'fill="none" stroke="#2E8B57" stroke-width="6"');
   else if (opt.fit) ring = shape(22, 'fill="none" stroke="#2E8B57" stroke-width="3" stroke-dasharray="8 6"');
   else if (opt.selected) ring = shape(22, 'fill="none" stroke="#2F80ED" stroke-width="3" stroke-dasharray="6 5"');
@@ -688,7 +688,7 @@ function tableText(t, o, opt) {
     <text y="${l3 ? -6 : -2}" text-anchor="middle" font-size="${big}" font-weight="800" fill="#1B3254" ${halo}>${esc(t.label)}</text>
     <text y="${l3 ? 11 : 16}" text-anchor="middle" font-size="12" font-weight="600" fill="#334" ${halo}>${esc(l2)}</text>
     ${l3 ? `<text y="25" text-anchor="middle" font-size="11" ${l3.startsWith('⏱') ? 'font-weight="800" fill="#C0392B"' : 'fill="#555"'} ${halo}>${esc(l3)}</text>` : ''}
-    ${gf ? `<g transform="translate(${round ? 22 : 30},-24)"><circle r="11" fill="#C8973A"/><text y="4" text-anchor="middle" font-size="9.5" font-weight="800" fill="#fff">GF</text></g>` : ''}
+    ${gf ? `<g transform="translate(${round ? 22 : 30},-24)"><circle r="11" fill="#B83280"/><text y="4" text-anchor="middle" font-size="9.5" font-weight="800" fill="#fff">GF</text></g>` : ''}
   </g>`;
 }
 function fixtureSvg(f, selected) {
@@ -770,7 +770,7 @@ function roomTabs(occ) {
 }
 function legend() {
   const sw = (c, extra='') => `<span class="swatch" style="background:${c};${extra}"></span>`;
-  return `<div class="legend"><span>${sw('#fff')} Open</span><span>${sw('#FFF3D6')} Held</span><span>${sw('rgba(27,50,84,.25)')} Seated</span><span>${sw('rgba(27,50,84,.5)')} Full</span><span>${sw('#F7C948')} Needs bussing</span><span>${sw('#D9D9D9')} Blocked</span><span>${sw('#C8973A','border-radius:50%')} Gluten-free</span>${longMins() ? `<span>${sw('rgba(192,57,43,.2)','border:2px dashed #C0392B')} Seated over ${longMins()} min</span>` : ''}<span>Colored outline = server section</span></div>`;
+  return `<div class="legend"><span>${sw('#fff')} Open</span><span>${sw('#FFF3D6')} Held</span><span>${sw('rgba(27,50,84,.25)')} Seated</span><span>${sw('rgba(27,50,84,.5)')} Full</span><span>${sw('#F7C948')} Needs bussing</span><span>${sw('#D9D9D9')} Blocked</span><span>${sw('#B83280','border-radius:50%')} Gluten-free</span>${longMins() ? `<span>${sw('rgba(192,57,43,.2)','border:2px dashed #C0392B')} Seated over ${longMins()} min</span>` : ''}<span>Colored outline = server section</span></div>`;
 }
 function svgPt(svg, e) { const pt = svg.createSVGPoint(); pt.x = e.clientX; pt.y = e.clientY; return pt.matrixTransform(svg.getScreenCTM().inverse()); }
 function bindFloor(mode) {
@@ -857,7 +857,7 @@ const tScale = rid => ppf(rid) / (W / 60);                   // dinner tables we
 function useRoom(rid) { const d = roomDims(rid); H = Math.max(200, Math.round(W * d.hft / d.wft)); }
 const fmtFt = n => { n = Math.round((+n || 0) * 2) / 2; return (Number.isInteger(n) ? n : n.toFixed(1)) + ' ft'; };
 const money = n => '$' + (Math.round((+n || 0) * 100) / 100).toFixed(2);
-const VCOLORS = ['#2F80ED','#27AE60','#9B51E0','#EB5757','#F2994A','#00A3A3','#C2185B','#6D4C41','#C8973A','#3d6b6b'];
+const VCOLORS = ['#2F80ED','#27AE60','#9B51E0','#EB5757','#F2994A','#00A3A3','#C2185B','#6D4C41','#5D6D7E','#3d6b6b'];
 function sortedVendors() { return S.vendors.slice().sort((a, b) => String(a.booth || '~').localeCompare(String(b.booth || '~'), undefined, {numeric:true}) || (a.business || a.name || '').localeCompare(b.business || b.name || '')); }
 function vColor(v) { const i = S.vendors.slice().sort((a, b) => (a.created_at || '').localeCompare(b.created_at || '') || a.id.localeCompare(b.id)).findIndex(x => x.id === v.id); return VCOLORS[(i < 0 ? 0 : i) % VCOLORS.length]; }
 const vName = v => v ? (v.business || v.name || 'Vendor') : '';
@@ -922,7 +922,7 @@ function lineInner(f, selected) {
   return s;
 }
 function lineSvg(f, selected) { return `<g class="fix fixline" data-fid="${f.id}" transform="translate(${f.x},${f.y}) rotate(${+f.rot || 0})">${lineInner(f, selected)}</g>`; }
-const LINE_COLORS = [['#1B3254','Navy'],['#222222','Black'],['#8a93a3','Gray'],['#C8973A','Gold'],['#C0392B','Red'],['#27AE60','Green'],['#2F80ED','Blue']];
+const LINE_COLORS = [['#1B3254','Navy'],['#222222','Black'],['#8a93a3','Gray'],['#C0392B','Red'],['#27AE60','Green'],['#2F80ED','Blue']];
 function lineEditor(f) {
   return `<div class="card"><h3>Line</h3><div class="stack">
     <div class="small muted">Drag the line to move it. Drag the round handles at either end to stretch or turn it (it snaps to 15°).</div>
