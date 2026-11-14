@@ -300,6 +300,7 @@ const Local = {
   save(d) { lsSet(this.key, d); },
   async listEvents() { return this.db().events.slice().sort((a,b) => (b.event_date||'').localeCompare(a.event_date||'')); },
   async listFb() { return []; },
+  async listFacRooms() { return []; },
   async loadEvent(id) { const d = this.db(); const f = r => r.event_id === id; return {sections:d.sections.filter(f), tables:d.tables.filter(f), parties:d.parties.filter(f), vendors:d.vendors.filter(f)}; },
   async upsert(kind, rows) { const d = this.db(); rows.forEach(r => { const a = d[kind]; const i = a.findIndex(x => x.id === r.id); if (i >= 0) a[i] = r; else a.push(r); }); this.save(d); },
   async remove(kind, ids) {
@@ -320,6 +321,8 @@ const Remote = {
   async q(p) { const {data, error} = await p; if (error) throw error; return data; },
   listEvents() { return this.q(this.sb.from('seat_events').select('*').order('event_date', {ascending:false})); },
   /* delcEVENTS events (read only) so a dinner or vendor event can start from one — linked by settings.fb_event_id */
+  /* Facilities room list (fac_settings.main.locations) — room names for floor plans */
+  async listFacRooms() { const r = await this.q(this.sb.from('fac_settings').select('data').eq('id', 'main').maybeSingle()); return (r && r.data && r.data.locations) || []; },
   listFb() { const d = new Date(Date.now() - 200 * 864e5).toISOString().slice(0, 10);
     return this.q(this.sb.from('events').select('id,name,date,type,status,start_time,end_time').gte('date', d).order('date', {ascending:true}).limit(300)); },
   async loadEvent(id) {
@@ -1065,9 +1068,9 @@ function viewVFloor() {
     <div class="card small"><h3>${esc(roomName(room))} totals</h3><b>${bqs.length}</b> vendor tables · <b>${chairs}</b> chairs${others ? ` · ${others} other table${others === 1 ? '' : 's'}` : ''}<br>${Object.entries(sizes).map(([k, v]) => `${v} × ${k}`).join('<br>')}<div style="margin-top:6px"><b>${assigned}</b> assigned to vendors · <b>${rts.length - assigned}</b> open</div></div>
     <div class="card"><h3>Room size</h3><div class="small muted" style="margin-bottom:8px">Measure the room wall to wall. Tables and lines are drawn to this scale.</div>
       <div class="stack">${rooms().map(r => { const d = roomDims(r.id); return `<div class="stack" style="gap:6px;border:1px solid var(--line);border-radius:10px;padding:8px">
-        <div class="row"><input class="inp" style="flex:1" value="${esc(r.name)}" data-chg="roomName" data-rid="${r.id}" aria-label="Room name">${rooms().length > 1 ? `<button class="btn sm bad" data-act="delRoom" data-rid="${r.id}">Remove</button>` : ''}</div>
+        <div class="row">${roomInput(r)}${rooms().length > 1 ? `<button class="btn sm bad" data-act="delRoom" data-rid="${r.id}">Remove</button>` : ''}</div>
         <div class="grid2"><label class="f">Width (ft)<input type="number" min="10" max="400" step="1" value="${d.wft}" data-chg="roomDim" data-rid="${r.id}" data-f="wft"></label><label class="f">Depth (ft)<input type="number" min="10" max="400" step="1" value="${d.hft}" data-chg="roomDim" data-rid="${r.id}" data-f="hft"></label></div></div>`; }).join('')}
-      <button class="btn" data-act="addRoom">+ Add room</button></div></div>
+      ${roomHint()}<button class="btn" data-act="addRoom">+ Add room</button></div></div>
   </div></div>`;
 }
 function viewVendors() {
@@ -1359,8 +1362,8 @@ function viewLayout() {
     ${f ? (f.kind === 'line' ? lineEditor(f) : labelEditor(f)) : ''}
     <div class="card small"><h3>${esc(roomName(room))} totals</h3><b>${rts.length}</b> tables · <b>${seats}</b> seats<br>${Object.entries(count).map(([k,v]) => `${v} × ${k}`).join('<br>')}${rooms().length > 1 ? `<div style="margin-top:6px">All rooms: <b>${allSeats}</b> seats</div>` : ''}</div>
     <div class="card"><h3>Rooms</h3><div class="small muted" style="margin-bottom:8px">Add an overflow room (like the Family Life Center). Each room gets its own map; switch rooms with the tabs above the map.</div>
-      <div class="stack">${rooms().map(r => `<div class="row"><input class="inp" style="flex:1" value="${esc(r.name)}" data-chg="roomName" data-rid="${r.id}" aria-label="Room name">${rooms().length > 1 ? `<button class="btn sm bad" data-act="delRoom" data-rid="${r.id}">Remove</button>` : ''}</div>`).join('')}
-      <button class="btn" data-act="addRoom">+ Add room</button></div></div>
+      <div class="stack">${rooms().map(r => `<div class="row">${roomInput(r)}${rooms().length > 1 ? `<button class="btn sm bad" data-act="delRoom" data-rid="${r.id}">Remove</button>` : ''}</div>`).join('')}
+      ${roomHint()}<button class="btn" data-act="addRoom">+ Add room</button></div></div>
   </div></div>`;
 }
 function viewSetup() {
@@ -1577,7 +1580,23 @@ async function loadEvents() {
   const fb = (B.listFb ? B.listFb() : Promise.resolve([])).catch(e => { console.warn('delcEVENTS list', e); return []; });
   try { S.events = await B.listEvents(); } catch (e) { console.error(e); toast('Could not load events: ' + (e.message || e), 'bad'); }
   S.fb = (await fb || []).map(f => ({...f, id: String(f.id)}));
+  if (!S.facRooms) { try { S.facRooms = (await (B.listFacRooms ? B.listFacRooms() : [])).filter(x => typeof x === 'string' && x.trim()); } catch (e) { console.warn('Facilities rooms', e); S.facRooms = []; } }
+  let dl = document.getElementById('facRooms'); if (!dl) { dl = document.createElement('datalist'); dl.id = 'facRooms'; document.body.appendChild(dl); }
+  dl.innerHTML = (S.facRooms || []).map(n => `<option value="${esc(n)}"></option>`).join('');
 }
+/* ---- rooms come from the Facilities room list (2026-11-14) ---- */
+const inFac = n => !(S.facRooms || []).length || S.facRooms.some(x => x.toLowerCase() === String(n || '').trim().toLowerCase());
+const facName = n => (S.facRooms || []).find(x => x.toLowerCase() === String(n || '').trim().toLowerCase()) || String(n || '').trim();
+/* size used for this room at an earlier event, so a room only gets measured once */
+function knownSize(name) {
+  const k = String(name || '').trim().toLowerCase(); if (!k) return null;
+  for (const e of S.events) { if (S.ev && e.id === S.ev.id) continue; const r = ((e.settings && e.settings.rooms) || []).find(x => (x.name || '').trim().toLowerCase() === k && +x.wft && +x.hft); if (r) return {wft: +r.wft, hft: +r.hft}; }
+  return null;
+}
+function roomInput(r) {
+  return `<input class="inp" style="flex:1" value="${esc(r.name)}" list="facRooms" data-chg="roomName" data-rid="${r.id}" aria-label="Room name" placeholder="Pick a room">`;
+}
+const roomHint = () => (S.facRooms || []).length ? `<div class="small muted">Room names come from the delcFACILITIES room list — tap a name box to pick one. ${rooms().filter(r => !inFac(r.name)).map(r => `<b>${esc(r.name)}</b>`).join(', ').replace(/^(.+)$/, '$1 isn’t on that list.')}</div>` : '';
 /* ---- link to delcEVENTS (2026-11-14) ---- */
 const FB_URL = 'https://delcdata.github.io/FBEventPotal/';
 const fbOf = e => { const id = e && e.settings && e.settings.fb_event_id; return id ? (S.fb || []).find(f => f.id === String(id)) || {id: String(id), name: 'delcEVENTS event', missing: true} : null; };
@@ -1659,7 +1678,7 @@ async function createEvent() {
     fixtures: srcEv ? clone(srcEv.fixtures || []) : clone(DEFAULT_FIXTURES), settings: srcEv ? clone(srcEv.settings || {bus:true}) : {bus:true}, archived: false, created_at: t0, updated_at: t0};
   ev.settings.kind = kind;
   const fbId = $('#ne_fb') ? $('#ne_fb').value : ''; if (fbId) ev.settings.fb_event_id = fbId; else delete ev.settings.fb_event_id;
-  if (VE && !srcEv) { ev.settings.rooms = [{id:'main', name:'Social Hall', wft:60, hft:50}]; ev.fixtures = ev.fixtures.filter(f => ['pill','stage'].includes(f.kind)); }
+  if (VE && !srcEv) { ev.settings.rooms = [{id:'main', name:'Social Hall', wft:60, hft:50, ...(knownSize('Social Hall') || {})}]; ev.fixtures = ev.fixtures.filter(f => ['pill','stage'].includes(f.kind)); }
   let sections = [], tables = [];
   try {
     if (srcEv) {
@@ -1802,9 +1821,11 @@ const ACT = {
   },
   room(d) { S.room = d.rid; S.sel.tableId = S.sel.fixtureId = null; render(); },
   addRoom() {
-    const rs = rooms(); const name = rs.some(r => /family life/i.test(r.name)) ? 'Room ' + (rs.length + 1) : 'Family Life Center';
-    const id = 'r' + uid().slice(0, 8);
-    tx('Add room', () => upd('events', S.ev.id, {settings: {...(S.ev.settings || {}), rooms: [...rs, {id, name}]}}));
+    const rs = rooms(), used = new Set(rs.map(r => (r.name || '').toLowerCase()));
+    const pref = ['Family Life Center', 'Social Hall', ...(S.facRooms || [])].map(facName);
+    const name = pref.find(n => !used.has(n.toLowerCase())) || 'Room ' + (rs.length + 1);
+    const id = 'r' + uid().slice(0, 8); const sz = knownSize(name);
+    tx('Add room', () => upd('events', S.ev.id, {settings: {...(S.ev.settings || {}), rooms: [...rs, {id, name, ...(sz || {})}]}}));
     S.room = id; toast(`Added ${name} — add tables with the buttons on the right`, 'ok'); render();
   },
   delRoom(d) {
@@ -2047,7 +2068,11 @@ document.addEventListener('change', e => {
     const patch = {[f]: v}; if (f === 'status') Object.assign(patch, statusPatch(p, v));
     tx(`Edit #${p.party_no}`, () => upd('parties', p.id, patch)); render(); return;
   }
-  if (k === 'roomName') { const nm = el.value.trim(); if (!nm) { render(); return; } tx('Rename room', () => upd('events', S.ev.id, {settings: {...(S.ev.settings || {}), rooms: rooms().map(r => r.id === d.rid ? {...r, name: nm} : r)}})); render(); return; }
+  if (k === 'roomName') { const nm = facName(el.value); if (!nm) { render(); return; }
+    const cur = rooms().find(r => r.id === d.rid) || {}; const sz = nm.toLowerCase() !== (cur.name || '').toLowerCase() ? knownSize(nm) : null;
+    tx('Rename room', () => upd('events', S.ev.id, {settings: {...(S.ev.settings || {}), rooms: rooms().map(r => r.id === d.rid ? {...r, name: nm, ...(sz || {})} : r)}}));
+    if (sz) toast(`Using the size from an earlier event: ${fmtFt(sz.wft)} × ${fmtFt(sz.hft)}`);
+    render(); return; }
   if (k === 'sf') { tx('Edit section', () => upd('sections', d.sid, {[d.f]: el.value.trim()})); render(); return; }
   if (k === 'tf') {
     const t = tbl(S.sel.tableId); let v = el.value; if (d.f === 'seats') v = Math.min(16, Math.max(t.shape === 'banquet' ? 0 : 1, int(v))); if (d.f === 'label') v = v.trim() || t.label;
