@@ -239,7 +239,6 @@ table.pt tfoot td{border-top:2px solid var(--line);background:#faf8f3}
 const CONFIG = {
   url: 'https://ksdxhqyusaylfpyeecbv.supabase.co',
   key: 'sb_publishable_2LJBKHTG1fXcMzWWHf1Mrg_EsrC4_JC',
-  password: 'Delc.1200!',   // fallback only if the hub login service can't be reached
   appKey: 'delcdining',     // key in hub_apps / hub_users.allowed_apps
   hubUrl: 'https://delcdata.github.io/DELCAppsHub/'
 };
@@ -1712,8 +1711,8 @@ const ACT = {
       if (session && !DelcAuth.getSession()) DelcAuth.setSession(session);
       if (!DelcAuth.hasAppAccess(session, CONFIG.appKey)) { err('Your account doesn’t have access to delcDINING.EVENT yet. Ask an admin to turn it on in the Admin Portal.'); return; }
     } else {
-      // hub login script didn't load (offline / GitHub down) — fall back to the shared password
-      if (pw !== CONFIG.password) { err('The login service is unreachable and that isn’t the fallback password.'); return; }
+      // hub login script didn't load (offline / GitHub down)
+      err('The DELC Apps login service can’t be reached right now. Check the internet connection and try again in a minute.'); return;
     }
     signIn(session, u); await boot();
   },
