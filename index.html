@@ -299,6 +299,7 @@ const Local = {
   db() { const d = lsGet(this.key) || {events:[], sections:[], tables:[], parties:[]}; d.vendors = d.vendors || []; return d; },
   save(d) { lsSet(this.key, d); },
   async listEvents() { return this.db().events.slice().sort((a,b) => (b.event_date||'').localeCompare(a.event_date||'')); },
+  async listFb() { return []; },
   async loadEvent(id) { const d = this.db(); const f = r => r.event_id === id; return {sections:d.sections.filter(f), tables:d.tables.filter(f), parties:d.parties.filter(f), vendors:d.vendors.filter(f)}; },
   async upsert(kind, rows) { const d = this.db(); rows.forEach(r => { const a = d[kind]; const i = a.findIndex(x => x.id === r.id); if (i >= 0) a[i] = r; else a.push(r); }); this.save(d); },
   async remove(kind, ids) {
@@ -318,6 +319,9 @@ const Remote = {
   init() { this.sb = window.supabase.createClient(CONFIG.url, CONFIG.key); },
   async q(p) { const {data, error} = await p; if (error) throw error; return data; },
   listEvents() { return this.q(this.sb.from('seat_events').select('*').order('event_date', {ascending:false})); },
+  /* delcEVENTS events (read only) so a dinner or vendor event can start from one — linked by settings.fb_event_id */
+  listFb() { const d = new Date(Date.now() - 200 * 864e5).toISOString().slice(0, 10);
+    return this.q(this.sb.from('events').select('id,name,date,type,status,start_time,end_time').gte('date', d).order('date', {ascending:true}).limit(300)); },
   async loadEvent(id) {
     const [sections, tables, parties] = await Promise.all(['seat_sections','seat_tables','seat_parties']
       .map(n => this.q(this.sb.from(n).select('*').eq('event_id', id))));
@@ -1114,6 +1118,7 @@ function viewVSetup() {
       <label class="f">Date<input id="ed" type="date" value="${esc(e.event_date || '')}"></label>
       <div class="grid2"><label class="f">Starts<input id="es" value="${esc(e.start_time || '')}" placeholder="9:00 AM"></label><label class="f">Ends<input id="ee" value="${esc(e.end_time || '')}" placeholder="3:00 PM"></label></div>
       <button class="btn pri" data-act="saveEvent">Save details</button></div></div>
+    ${fbCard(e)}
     <div class="card"><h3>Print &amp; backup</h3><div class="stack">
       <button class="btn" data-act="printMap">Print floor map</button>
       <button class="btn" data-act="printVendors">Print vendor list</button>
@@ -1171,7 +1176,7 @@ function viewEvents() {
   <div class="events">
     <div class="row" style="justify-content:space-between;margin-bottom:14px"><h2 style="margin:0;color:var(--navy)">Events</h2><button class="btn pri" data-act="newEvent">+ New event</button></div>
     ${list.length ? list.map(e => `<div class="card evcard" data-act="openEvent" data-id="${e.id}"><div><h3>${esc(e.name)}</h3>
-      <div class="muted small">${e.settings && e.settings.kind === 'vendor' ? '<span class="chip vend">Vendor event</span> ' : ''}${esc(fmtDate(e.event_date))}${e.start_time ? ' · ' + esc(e.start_time) + (e.end_time ? '–' + esc(e.end_time) : '') : ''}</div></div><span class="btn sm">Open →</span></div>`).join('')
+      <div class="muted small">${e.settings && e.settings.kind === 'vendor' ? '<span class="chip vend">Vendor event</span> ' : ''}${e.settings && e.settings.fb_event_id ? '<span class="chip" title="Linked to delcEVENTS">delcEVENTS</span> ' : ''}${esc(fmtDate(e.event_date))}${e.start_time ? ' · ' + esc(e.start_time) + (e.end_time ? '–' + esc(e.end_time) : '') : ''}</div></div><span class="btn sm">Open →</span></div>`).join('')
       : `<div class="card empty">No events yet. Create one for a dinner (starts with the standard social hall layout) or a vendor event (booths, vendors and fees).</div>`}
   </div>`;
 }
@@ -1383,6 +1388,7 @@ function viewSetup() {
       <label class="row small"><input type="checkbox" id="ebus" ${set.bus !== false ? 'checked' : ''}> Tables need bussing before the next party</label>
       <label class="f">Flag tables seated longer than (minutes, 0 = off)<input id="elong" type="number" min="0" step="5" value="${longMins()}"></label>
       <button class="btn pri" data-act="saveEvent">Save details</button></div></div>
+    ${fbCard(e)}
     <div class="card"><h3>Backup</h3><div class="stack">
       <button class="btn" data-act="exportJson">Download backup (JSON)</button>
       <button class="btn" data-act="importJson">Restore backup as a new event</button><input type="file" id="jsonFile" accept=".json,application/json" class="hidden">
@@ -1503,7 +1509,9 @@ function modalWalkin() {
 }
 function modalNewEvent() {
   const others = S.events.filter(e => !e.archived);
+  const fbl = S.backend !== 'local' && (S.fb || []).length;
   return `<div class="mhead"><h2>New event</h2><button class="x" data-act="closeModal">×</button></div><div class="stack">
+    ${fbl ? `<label class="f">From delcEVENTS${fbPicker('ne_fb', (S.modal && S.modal.fb) || '')}</label><div class="small muted" style="margin-top:-6px">Pick the event and its name, date and times fill in. Choose “Not in delcEVENTS” for anything else.</div>` : ''}
     <label class="f">Type<select id="ne_type" data-chg="neType"><option value="dinner">Dinner seating (parties, servers, take-out)</option><option value="vendor">Vendor event (booths, tables &amp; chairs, fees)</option></select></label>
     <label class="f">Name<input id="ne_name" value="Benefit Dinner"></label>
     <div class="grid2"><label class="f">Date<input id="ne_date" type="date"></label><label class="f">Layout<select id="ne_src"><option value="" id="ne_std">Standard social hall (14 tables)</option>${others.map(e => `<option value="${e.id}">Copy from: ${esc(e.name)}</option>`).join('')}</select></label></div>
@@ -1565,7 +1573,40 @@ document.addEventListener('focusout', () => setTimeout(() => { if (S.pendingBg &
 setInterval(() => { if (S.ev) scheduleBg(); }, 30000);
 
 /* ---------------- data loading / sync ---------------- */
-async function loadEvents() { try { S.events = await B.listEvents(); } catch (e) { console.error(e); toast('Could not load events: ' + (e.message || e), 'bad'); } }
+async function loadEvents() {
+  const fb = (B.listFb ? B.listFb() : Promise.resolve([])).catch(e => { console.warn('delcEVENTS list', e); return []; });
+  try { S.events = await B.listEvents(); } catch (e) { console.error(e); toast('Could not load events: ' + (e.message || e), 'bad'); }
+  S.fb = (await fb || []).map(f => ({...f, id: String(f.id)}));
+}
+/* ---- link to delcEVENTS (2026-11-14) ---- */
+const FB_URL = 'https://delcdata.github.io/FBEventPotal/';
+const fbOf = e => { const id = e && e.settings && e.settings.fb_event_id; return id ? (S.fb || []).find(f => f.id === String(id)) || {id: String(id), name: 'delcEVENTS event', missing: true} : null; };
+const fbLinked = () => new Set(S.events.map(e => e.settings && e.settings.fb_event_id).filter(Boolean).map(String));
+function t12(t) { const m = /^(\d{1,2}):(\d{2})/.exec(t || ''); if (!m) return t || ''; let h = +m[1]; const ap = h >= 12 ? 'PM' : 'AM'; h = h % 12 || 12; return h + ':' + m[2] + ' ' + ap; }
+const fbVendor = f => /vendor|show|fair|market|bazaar|craft event/i.test((f.type || '') + ' ' + (f.name || ''));
+const fbLabel = f => (f.date ? fmtDate(f.date) + ' · ' : '') + f.name + (f.type ? ' (' + f.type + ')' : '');
+function fbPicker(id, cur, {all = false} = {}) {
+  const today = new Date(Date.now() - 7 * 864e5).toISOString().slice(0, 10), used = fbLinked();
+  const list = (S.fb || []).filter(f => f.id === cur || (all ? !used.has(f.id) : (!used.has(f.id) && (f.date || '') >= today)));
+  const c = cur && !list.some(f => f.id === cur) ? fbOf({settings: {fb_event_id: cur}}) : null;
+  return `<select id="${id}" data-chg="${id === 'ne_fb' ? 'neFb' : 'noop'}"><option value="">${all ? 'Not linked' : '— Not in delcEVENTS —'}</option>${c ? `<option value="${esc(c.id)}" selected>${esc(c.name)}</option>` : ''}${list.map(f => `<option value="${esc(f.id)}" ${f.id === cur ? 'selected' : ''}>${esc(fbLabel(f))}</option>`).join('')}</select>`;
+}
+function fbCard(e) {
+  if (S.backend === 'local') return '';
+  const f = fbOf(e), cur = f ? f.id : '';
+  return `<div class="card"><h3>delcEVENTS</h3><div class="stack">
+    <div class="small muted">${f ? `Linked to <b>${esc(f.name)}</b>${f.date ? ' · ' + esc(fmtDate(f.date)) : ''}. Costs, offering and volunteers for it are kept in delcEVENTS.` : 'Link this to its delcEVENTS event so the two apps point to each other.'}</div>
+    <label class="f">Linked event${fbPicker('efb', cur, {all: true})}</label>
+    <div class="row" style="gap:8px;flex-wrap:wrap">${f && !f.missing ? `<button class="btn sm" data-act="fbPull">Use its name, date &amp; times</button><a class="btn sm" style="text-decoration:none" href="${FB_URL}?event=${encodeURIComponent(f.id)}" target="_blank" rel="noopener">Open in delcEVENTS ↗</a>` : ''}</div>
+    <div class="small muted">Change the link, then press <b>Save details</b>.</div></div></div>`;
+}
+function applyFb(id) {
+  const f = (S.fb || []).find(x => x.id === id); if (!f) return;
+  const ty = $('#ne_type'), nm = $('#ne_name'), dt = $('#ne_date'), s0 = $('#ne_s'), e0 = $('#ne_e');
+  if (ty) { ty.value = fbVendor(f) ? 'vendor' : 'dinner'; ty.dispatchEvent(new Event('change', {bubbles: true})); }
+  if (nm) nm.value = f.name || ''; if (dt) dt.value = f.date || '';
+  if (s0 && f.start_time) s0.value = t12(f.start_time); if (e0 && f.end_time) e0.value = t12(f.end_time);
+}
 function overlayPending(kind, rows) {
   const map = new Map(rows.map(r => [r.id, r]));
   for (const job of Q.pend.values()) if (job.kind === kind) { if (job.op === 'up') map.set(job.row.id, job.row); else map.delete(job.id); }
@@ -1617,6 +1658,7 @@ async function createEvent() {
   const ev = {id, name, event_date: $('#ne_date').value || null, start_time: $('#ne_s').value.trim(), end_time: $('#ne_e').value.trim(), notes: '',
     fixtures: srcEv ? clone(srcEv.fixtures || []) : clone(DEFAULT_FIXTURES), settings: srcEv ? clone(srcEv.settings || {bus:true}) : {bus:true}, archived: false, created_at: t0, updated_at: t0};
   ev.settings.kind = kind;
+  const fbId = $('#ne_fb') ? $('#ne_fb').value : ''; if (fbId) ev.settings.fb_event_id = fbId; else delete ev.settings.fb_event_id;
   if (VE && !srcEv) { ev.settings.rooms = [{id:'main', name:'Social Hall', wft:60, hft:50}]; ev.fixtures = ev.fixtures.filter(f => ['pill','stage'].includes(f.kind)); }
   let sections = [], tables = [];
   try {
@@ -1886,8 +1928,15 @@ const ACT = {
   doImport(d) { doImport(d.mode); },
   saveEvent() {
     const st = {...(S.ev.settings||{})}; if ($('#ebus')) st.bus = $('#ebus').checked; if ($('#elong')) st.longMins = int($('#elong').value);
+    if ($('#efb')) { if ($('#efb').value) st.fb_event_id = $('#efb').value; else delete st.fb_event_id; }
     tx('Edit event', () => upd('events', S.ev.id, {name: $('#en').value.trim() || S.ev.name, event_date: $('#ed').value || null, start_time: $('#es').value.trim(), end_time: $('#ee').value.trim(), settings: st}));
     toast('Saved', 'ok'); render();
+  },
+  fbPull() {
+    const f = fbOf(S.ev); if (!f || f.missing) return;
+    if ($('#en')) $('#en').value = f.name || ''; if ($('#ed')) $('#ed').value = f.date || '';
+    if ($('#es') && f.start_time) $('#es').value = t12(f.start_time); if ($('#ee') && f.end_time) $('#ee').value = t12(f.end_time);
+    toast('Filled in from delcEVENTS — press Save details to keep it');
   },
   practiceReset() {
     if (!confirm('Reset the night? Every party goes back to expected, holds are released, and every table becomes open.')) return;
@@ -1969,6 +2018,7 @@ document.addEventListener('input', e => {
 });
 document.addEventListener('change', e => {
   const el = e.target; const k = el.dataset.chg; if (!k) return; const d = el.dataset;
+  if (k === 'neFb') { if (el.value) applyFb(el.value); return; }
   if (k === 'neType') {
     const VE = el.value === 'vendor'; const nm = $('#ne_name'), s0 = $('#ne_s'), e0 = $('#ne_e'), std = $('#ne_std');
     if (nm && /^(Benefit Dinner|Vendor Event)$/.test(nm.value)) nm.value = VE ? 'Vendor Event' : 'Benefit Dinner';
@@ -2028,6 +2078,12 @@ async function boot() {
   if (B === Remote) { try { Remote.init(); } catch (e) { $('#app').innerHTML = viewLogin('Could not connect to the database.'); return; } }
   S.role = lsGet('seat_role') || 'host';
   await loadEvents();
+  if (S.fromFb) {
+    const id = String(S.fromFb); S.fromFb = null;
+    const have = S.events.find(e => !e.archived && e.settings && String(e.settings.fb_event_id) === id);
+    if (have) { await openEvent(have.id); return; }
+    if ((S.fb || []).some(f => f.id === id)) { S.ev = null; S.modal = {type: 'newEvent', fb: id}; render(); applyFb(id); return; }
+  }
   const last = lsGet('seat_last_event');
   if (last && S.events.some(e => e.id === last)) await openEvent(last); else render();
 }
@@ -2044,6 +2100,9 @@ function hubSession() {
 (async function start() {
   const params = new URLSearchParams(location.search);
   if (params.get('demo') === '1') lsSet('seat_backend', 'local');
+  if (params.get('event')) lsSet('seat_last_event', params.get('event'));
+  if (params.get('from')) S.fromFb = params.get('from');
+  if (params.get('event') || params.get('from')) { try { history.replaceState(null, '', location.pathname); } catch (_) {} }
   const backend = lsGet('seat_backend') || 'remote';
   if (backend === 'local') { S.backend = 'local'; S.user = lsGet('seat_user'); if (S.user) boot(); else render(); return; }
   let sess = hubSession();
